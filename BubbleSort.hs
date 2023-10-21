@@ -3,6 +3,9 @@ import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.Monad
 
+showTList :: [TVar Int] -> IO ()
+showTList = print <=< mapM readTVarIO
+
 swap :: TVar Int -> TVar Int -> STM ()
 swap a b = do
   a' <- readTVar a
@@ -67,11 +70,13 @@ seqBubbleTest = do
   sorted <- mapM readTVarIO ns
   print sorted
 
+-- Concurrent bubble sort with atomic swaps
 concBubbleTest :: IO ()
 concBubbleTest = do
-  ns' <- mapM newTVarIO [10, 9 .. 0]
-  -- threads' <- mapM (\x -> async $ replicateM 10 $ atomically $ swapAtIndex ns' x) [0..9]
-  thread' <- async $ replicateM 10 $ atomically $ swapAtIndex ns' 3
-  wait thread'
-  s <- mapM readTVarIO ns'
-  print s
+  ns <- mapM newTVarIO [10, 9 .. 0]
+  -- Start a new thread for each index, swapping the numbers if needed
+  threads <- mapM (async . forever . atomically . swapAtIndex ns) [0..9]
+  t <- async $ forever $ showTList ns -- Start a new thread for tracing the list
+  threadDelay 2000000 -- Wait two seconds
+  mapM_ cancel threads
+  cancel t
